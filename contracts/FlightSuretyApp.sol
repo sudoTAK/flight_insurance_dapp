@@ -26,6 +26,8 @@ contract FlightSuretyApp {
 
 	address private contractOwner; // Account used to deploy contract
 
+	FlightSuretyData flightSuretyData; //data contract instance
+
 	struct Flight {
 		bool isRegistered;
 		uint8 statusCode;
@@ -48,7 +50,7 @@ contract FlightSuretyApp {
 	 */
 	modifier requireIsOperational() {
 		// Modify to call data contract's status
-		require(true, "Contract is currently not operational");
+		require(isOperational(), "Contract is currently not operational");
 		_; // All modifiers require an "_" which indicates where the function body will be added
 	}
 
@@ -68,16 +70,17 @@ contract FlightSuretyApp {
 	 * @dev Contract constructor
 	 *
 	 */
-	constructor() public {
+	constructor(address dataContract) public {
 		contractOwner = msg.sender;
+		flightSuretyData = FlightSuretyData(dataContract);
 	}
 
 	/********************************************************************************************/
 	/*                                       UTILITY FUNCTIONS                                  */
 	/********************************************************************************************/
 
-	function isOperational() public pure returns (bool) {
-		return true; // Modify to call data contract's status
+	function isOperational() public view returns (bool) {
+		return flightSuretyData.isOperational(); // Modify to call data contract's status
 	}
 
 	/********************************************************************************************/
@@ -299,4 +302,8 @@ contract FlightSuretyApp {
 	}
 
 	// endregion
+}
+
+contract FlightSuretyData {
+	function isOperational() external view returns (bool);
 }
