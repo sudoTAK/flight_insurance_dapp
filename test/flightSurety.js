@@ -43,7 +43,6 @@ contract("Flight Surety Tests", async (accounts) => {
 
   it(`4(multiparty) can block access to functions using requireIsOperational when operating status is false`, async function () {
     await config.flightSuretyData.setOperatingStatus(false);
-
     let reverted = false;
     try {
       await config.flightSuretyData.setTestingMode(true);
@@ -62,9 +61,11 @@ contract("Flight Surety Tests", async (accounts) => {
 
     // ACT
     try {
-      await config.flightSuretyApp.registerAirline(newAirline, { from: config.firstAirline });
-    } catch (e) {}
-    let result = await config.flightSuretyData.isAirline.call(newAirline);
+      await config.flightSuretyApp.registerAirline(newAirline, "Japan Airways", { from: config.firstAirline });
+    } catch (e) {
+      console.log(e);
+    }
+    let result = await config.flightSuretyApp.isAirline.call(newAirline);
 
     // ASSERT
     assert.equal(result, false, "Airline should not be able to register another airline if it hasn't provided funding");

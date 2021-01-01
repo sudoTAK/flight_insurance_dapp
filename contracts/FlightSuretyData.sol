@@ -13,6 +13,15 @@ contract FlightSuretyData {
 	bool private operational = true; // Blocks all state changes throughout the contract if false
 	address private authorizeAppContract; // Account allowed to access this contract
 
+	mapping(address => Airline) private registeredAirlinesMap;
+	address[] private registeredAirlineArray = new address[](0);
+
+	struct Airline {
+		string name;
+		bool isRegistered;
+		bool hasFunded;
+	}
+
 	/********************************************************************************************/
 	/*                                       EVENT DEFINITIONS                                  */
 	/********************************************************************************************/
@@ -21,8 +30,11 @@ contract FlightSuretyData {
 	 * @dev Constructor
 	 *      The deploying account becomes contractOwner
 	 */
-	constructor() public {
+	constructor(address firstAirline, string name) public {
 		contractOwner = msg.sender;
+		//creating first airline during deployment of data contract.
+		registeredAirlineArray.push(firstAirline);
+		registeredAirlinesMap[firstAirline] = Airline(name, true, false);
 	}
 
 	/********************************************************************************************/
@@ -54,10 +66,7 @@ contract FlightSuretyData {
 	 * @dev Modifier that requires the registered APP contract account to be the function caller
 	 */
 	modifier requireAuthorizeCaller() {
-		require(
-			msg.sender == authorizeAppContract,
-			"Caller is not authorize contract"
-		);
+		require(msg.sender == authorizeAppContract, "Caller is not authorize contract");
 		_;
 	}
 
@@ -80,10 +89,7 @@ contract FlightSuretyData {
 	 * When operational mode is disabled, all write transactions except for this one will fail
 	 */
 	function setOperatingStatus(bool mode) external requireContractOwner {
-		require(
-			mode != operational,
-			"New mode must be different from existing mode"
-		);
+		require(mode != operational, "New mode must be different from existing mode");
 		operational = mode;
 	}
 
@@ -92,14 +98,8 @@ contract FlightSuretyData {
 	 *
 	 * this allow only registeredAppAddress to call data contract
 	 */
-	function authorizeCaller(address allowedAddress)
-		public
-		requireContractOwner
-	{
-		require(
-			authorizeAppContract != allowedAddress,
-			"New authorizeCaller must be different from existing authorizeCaller"
-		);
+	function authorizeCaller(address allowedAddress) public requireContractOwner {
+		require(authorizeAppContract != allowedAddress, "New authorizeCaller must be different from existing authorizeCaller");
 		authorizeAppContract = allowedAddress;
 	}
 
@@ -108,7 +108,30 @@ contract FlightSuretyData {
 	 *
 	 *  this is for fullfill setTestingMode test requirements
 	 */
-	function setTestingMode(bool value) public requireIsOperational {}
+	function setTestingMode(bool value) public view requireIsOperational {
+		value = false; //to remove turffle compile warning.
+	}
+
+	/**
+	 * @dev method to check if airline already registered or not. called from app contract
+	 */
+	function isAirlineExists(address airlineAddress) external view requireAuthorizeCaller returns (bool) {
+		return registeredAirlinesMap[airlineAddress].isRegistered;
+	}
+
+	/**
+	 * @dev method to check if airline already registered or not. called from app contract
+	 */
+	function hasAirlineFunded(address airlineAddress) external view requireAuthorizeCaller returns (bool) {
+		return registeredAirlinesMap[airlineAddress].hasFunded;
+	}
+
+	/**
+	 * @dev method to check if airline already registered or not. called from app contract
+	 */
+	function getRegisteredAirlineArr() external view requireAuthorizeCaller returns (address[] memory) {
+		return registeredAirlineArray;
+	}
 
 	/********************************************************************************************/
 	/*                                     SMART CONTRACT FUNCTIONS                             */
@@ -117,9 +140,13 @@ contract FlightSuretyData {
 	/**
 	 * @dev Add an airline to the registration queue
 	 *      Can only be called from FlightSuretyApp contract
-	 *
+	 *     no need to check if requireIsOperational, app data will check it, just check requireAuthorizeCaller
 	 */
-	function registerAirline() external pure {}
+	function registerAirline(address airlineAddress, string name) external requireAuthorizeCaller {
+		//just register Airline. no need validation. the logic will be applied in app contract.
+		registeredAirlineArray.push(airlineAddress);
+		registeredAirlinesMap[airlineAddress] = Airline(name, true, false);
+	}
 
 	/**
 	 * @dev Buy insurance for a flight
