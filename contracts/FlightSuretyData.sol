@@ -11,6 +11,7 @@ contract FlightSuretyData {
 
 	address private contractOwner; // Account used to deploy contract
 	bool private operational = true; // Blocks all state changes throughout the contract if false
+	address private authorizeAppContract; // Account allowed to access this contract
 
 	/********************************************************************************************/
 	/*                                       EVENT DEFINITIONS                                  */
@@ -49,6 +50,17 @@ contract FlightSuretyData {
 		_;
 	}
 
+	/**
+	 * @dev Modifier that requires the registered APP contract account to be the function caller
+	 */
+	modifier requireAuthorizeCaller() {
+		require(
+			msg.sender == authorizeAppContract,
+			"Caller is not authorize contract"
+		);
+		_;
+	}
+
 	/********************************************************************************************/
 	/*                                       UTILITY FUNCTIONS                                  */
 	/********************************************************************************************/
@@ -68,8 +80,35 @@ contract FlightSuretyData {
 	 * When operational mode is disabled, all write transactions except for this one will fail
 	 */
 	function setOperatingStatus(bool mode) external requireContractOwner {
+		require(
+			mode != operational,
+			"New mode must be different from existing mode"
+		);
 		operational = mode;
 	}
+
+	/**
+	 * @dev Sets registeredAppAddress app contract address
+	 *
+	 * this allow only registeredAppAddress to call data contract
+	 */
+	function authorizeCaller(address allowedAddress)
+		public
+		requireContractOwner
+	{
+		require(
+			authorizeAppContract != allowedAddress,
+			"New authorizeCaller must be different from existing authorizeCaller"
+		);
+		authorizeAppContract = allowedAddress;
+	}
+
+	/**
+	 * @dev dummy method to test if isOperational working or not
+	 *
+	 *  this is for fullfill setTestingMode test requirements
+	 */
+	function setTestingMode(bool value) public requireIsOperational {}
 
 	/********************************************************************************************/
 	/*                                     SMART CONTRACT FUNCTIONS                             */
