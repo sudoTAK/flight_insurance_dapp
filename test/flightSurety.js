@@ -83,7 +83,7 @@ contract("Flight Surety Tests", async (accounts) => {
     let noFunded = await config.flightSuretyApp.isAirlineFunded(config.firstAirline);
     let isFunded;
     try {
-      await config.flightSuretyApp.fund({ from: config.firstAirline, value: 10 });
+      await config.flightSuretyApp.fund({ from: config.firstAirline, value: web3.utils.toWei("10", "ether") });
       isFunded = await config.flightSuretyApp.isAirlineFunded(config.firstAirline);
     } catch (e) {}
     assert.equal(noFunded, !isFunded, "Airline fund status should be changed to funded, but not changed");
@@ -153,7 +153,7 @@ contract("Flight Surety Tests", async (accounts) => {
     assert.equal(isAirline5GotRegistered, false, "10b : should not be registered");
 
     //we need one more vote to register airline5, but before that we need to fund airline2 in order to cast its vote.
-    await config.flightSuretyApp.fund({ from: airline2, value: 10 });
+    await config.flightSuretyApp.fund({ from: airline2, value: web3.utils.toWei("10", "ether") });
 
     //now since we have 2 funded airlines namely firstAirline and airline2 and we need two votes (50% of 4) to register airline 5
     //airline5 has already been voted by firstAirline, now lets vote it by airline2
@@ -201,7 +201,7 @@ contract("Flight Surety Tests", async (accounts) => {
     assert.equal(isAirline6GotRegistered, false, "11b : should not be registered");
 
     //let us fund airlin5
-    await config.flightSuretyApp.fund({ from: airline5, value: 10 });
+    await config.flightSuretyApp.fund({ from: airline5, value: web3.utils.toWei("10", "ether") });
 
     //confirm is funding successfull
     let isFunded = await config.flightSuretyApp.isAirlineFunded(airline5);
@@ -215,9 +215,12 @@ contract("Flight Surety Tests", async (accounts) => {
     } catch (e) {
       shouldBeAbleToVoteButAirLineShouldNotRegister = true;
       //to know how many votes more needed, log the error
-        // console.log(e);
+      // console.log(e);
     }
     //confirm that airline5 should not be registered because of 50% vote is not gained.
     assert.equal(shouldBeAbleToVoteButAirLineShouldNotRegister, true, "11d: should not register untill 50% vote");
   });
+
+
+  //passenger tests
 });

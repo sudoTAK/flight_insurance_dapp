@@ -13,7 +13,7 @@ contract FlightSuretyData {
 	bool private operational = true; // Blocks all state changes throughout the contract if false
 	address private authorizeAppContract; // Account allowed to access this contract
 
-	uint256 private airlineInitialFundAmount = 10; // airlines have to pay 10 ether. this can be changed by contract owner. helper function provided.
+	uint256 private airlineInitialFundAmount = 10 ether; // airlines have to pay 10 ether. this can be changed by contract owner. helper function provided.
 
 	mapping(address => Airline) private registeredAirlinesMap;
 	address[] private registeredAirlineArray = new address[](0);
