@@ -112,6 +112,30 @@ contract FlightSuretyApp {
 		return flightSuretyData.hasAirlineFunded(airlineAddress);
 	}
 
+	/// @notice converts number to string
+	/// @dev source: https://github.com/provable-things/ethereum-api/blob/master/oraclizeAPI_0.5.sol#L1045
+	/// @param _i integer to convert
+	/// @return _uintAsString
+	function uintToStr(uint256 _i) internal pure returns (string memory _uintAsString) {
+		uint256 number = _i;
+		if (number == 0) {
+			return "0";
+		}
+		uint256 j = number;
+		uint256 len;
+		while (j != 0) {
+			len++;
+			j /= 10;
+		}
+		bytes memory bstr = new bytes(len);
+		uint256 k = len - 1;
+		while (number != 0) {
+			bstr[k--] = bytes1(uint8(48 + (number % 10)));
+			number /= 10;
+		}
+		return string(bstr);
+	}
+
 	/********************************************************************************************/
 	/*                                     SMART CONTRACT FUNCTIONS                             */
 	/********************************************************************************************/
@@ -130,7 +154,6 @@ contract FlightSuretyApp {
 		require(tempEmptyStringTest.length > 0, "Airline name not provided"); //fail fast if airline name is empty
 		//	address[] registeredAirlineArray;
 		address[] memory getRegisteredAirlineArr = flightSuretyData.getRegisteredAirlineArr();
-
 		if (getRegisteredAirlineArr.length < 4) {
 			require(
 				flightSuretyData.isAirlineExists(msg.sender),
@@ -143,17 +166,21 @@ contract FlightSuretyApp {
 			uint256 voteRequired = getRegisteredAirlineArr.length.div(2); //fifty percent required
 			uint256 voteGained = 0;
 			bool isDuplicate = false;
-
 			//check if msg.sender already added provided airline to pool.
-			if (flightSuretyData.isAirlinInForRegistration(airlineAddress, msg.sender)) {
+			if (!flightSuretyData.isAirlinInForRegistration(airlineAddress, msg.sender)) {
 				//if not, then add this airline to pool and wait for 50% vote.
 				//note : this does not mean one vote is given, it just means pooling. vote count will be calculated later in the method
 				flightSuretyData.addToNewAirlineVotePool(airlineAddress, msg.sender);
+				//fail fast
+				if (!flightSuretyData.hasAirlineFunded(msg.sender)) {
+					require(!true, "You have successfully added this airline to registration pool, you need to fund to cast your vote.");
+				} else {}
 			} else {
+				//fail fast
+				if (!flightSuretyData.hasAirlineFunded(msg.sender)) {
+					require(!true, "You have already added this airline in registration pool, you need to fund to cast your vote.");
+				}
 				isDuplicate = true;
-				if (flightSuretyData.addedToPoolAndHasFunded(airlineAddress, msg.sender)) {
-					require(isDuplicate, "You has already voted for this Airline.");
-				} else require(isDuplicate, "You has already added this Airline.");
 			}
 
 			for (uint256 i = 0; i < getRegisteredAirlineArr.length; i++) {
@@ -162,11 +189,14 @@ contract FlightSuretyApp {
 					voteGained = voteGained + 1;
 				}
 				if (voteGained == voteRequired) {
+					//we have got enought vote, now register the airline
+					flightSuretyData.registerAirline(airlineAddress, name);
+					//delete all references from storage, as it is no longer required in pending pool
 					flightSuretyData.deletePendingAirlineFromPool(airlineAddress);
 					return (true, voteGained);
 				}
 			}
-
+			require(!isDuplicate, string(abi.encodePacked("Not enought vote gained, more vote needed = ", uintToStr(voteRequired - voteGained))));
 			return (false, voteGained);
 		}
 	}
