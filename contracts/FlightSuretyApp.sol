@@ -164,6 +164,8 @@ contract FlightSuretyApp {
 			return (true, 0);
 		} else {
 			uint256 voteRequired = getRegisteredAirlineArr.length.div(2); //fifty percent required
+			if (getRegisteredAirlineArr.length % 2 != 0) voteRequired = voteRequired + 1; // upperbound we take. i.e if 7/2, we need four vots not 3.5
+
 			uint256 voteGained = 0;
 			bool isDuplicate = false;
 			//check if msg.sender already added provided airline to pool.
@@ -171,10 +173,6 @@ contract FlightSuretyApp {
 				//if not, then add this airline to pool and wait for 50% vote.
 				//note : this does not mean one vote is given, it just means pooling. vote count will be calculated later in the method
 				flightSuretyData.addToNewAirlineVotePool(airlineAddress, msg.sender);
-				//fail fast
-				if (!flightSuretyData.hasAirlineFunded(msg.sender)) {
-					require(!true, "You have successfully added this airline to registration pool, you need to fund to cast your vote.");
-				} else {}
 			} else {
 				//fail fast
 				if (!flightSuretyData.hasAirlineFunded(msg.sender)) {
@@ -183,7 +181,8 @@ contract FlightSuretyApp {
 				isDuplicate = true;
 			}
 
-			for (uint256 i = 0; i < getRegisteredAirlineArr.length; i++) {
+			uint256 totalRegisteredAirlines = getRegisteredAirlineArr.length;
+			for (uint256 i = 0; i < totalRegisteredAirlines; i++) {
 				//check if the airlin to be registered is already in pool and the msg.sender has funded. if both true, increment one vote.
 				if (flightSuretyData.addedToPoolAndHasFunded(airlineAddress, getRegisteredAirlineArr[i])) {
 					voteGained = voteGained + 1;
@@ -196,7 +195,23 @@ contract FlightSuretyApp {
 					return (true, voteGained);
 				}
 			}
-			require(!isDuplicate, string(abi.encodePacked("Not enought vote gained, more vote needed = ", uintToStr(voteRequired - voteGained))));
+
+			// no need for this require statement, i have included it to show proper test error during testing
+			require(
+				isDuplicate == false,
+				string(
+					abi.encodePacked(
+						"Not enought vote gained, more vote needed = ",
+						uintToStr(voteRequired - voteGained),
+						", total registered = ",
+						uintToStr(totalRegisteredAirlines),
+						", voteRequired = ",
+						uintToStr(voteRequired),
+						", vote gained = ",
+						uintToStr(voteGained)
+					)
+				)
+			);
 			return (false, voteGained);
 		}
 	}

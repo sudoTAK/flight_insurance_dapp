@@ -136,17 +136,21 @@ contract("Flight Surety Tests", async (accounts) => {
     let airline5 = accounts[5];
 
     // ACT
-    let revertIfNotEnoughtVoteGained = false;
+    let refertIfDuplicateVoteOrNotFundedButInPool = false;
     try {
       await config.flightSuretyApp.registerAirline(airline5, "Candada Airways", { from: config.firstAirline });
     } catch (e) {
-      revertIfNotEnoughtVoteGained = true;
+      refertIfDuplicateVoteOrNotFundedButInPool = true;
     }
-    assert.equal(revertIfNotEnoughtVoteGained, true, "should Revert if not enought vote gained or airline is not funded before casting its vote");
-    let isAirline5GotRegistered = await config.flightSuretyApp.isAirline.call(airline5);
+    assert.equal(
+      refertIfDuplicateVoteOrNotFundedButInPool,
+      true,
+      "10a : should Revert if not enought vote gained or airline is not funded before casting its vote"
+    );
 
+    let isAirline5GotRegistered = await config.flightSuretyApp.isAirline.call(airline5);
     //confirm that airline5 is not registered
-    assert.equal(isAirline5GotRegistered, false, "should not be registered but got registered");
+    assert.equal(isAirline5GotRegistered, false, "10b : should not be registered");
 
     //we need one more vote to register airline5, but before that we need to fund airline2 in order to cast its vote.
     await config.flightSuretyApp.fund({ from: airline2, value: 10 });
@@ -157,14 +161,63 @@ contract("Flight Surety Tests", async (accounts) => {
     try {
       await config.flightSuretyApp.registerAirline(airline5, "Candada Airways", { from: airline2 });
     } catch (e) {
+      console.log("10c error ");
       console.log(e);
       shouldRegisterAirline5ThisTime = false;
     }
-    assert.equal(shouldRegisterAirline5ThisTime, true, "airline5 should be registered without error now, but error occurred");
-
-    isAirline5GotRegistered = await config.flightSuretyApp.isAirline.call(airline5);
+    assert.equal(shouldRegisterAirline5ThisTime, true, "10c : airline5 should be registered without error now, but error occurred");
 
     //confirm that airline5 should have been registered by now, since 50% vote is acheived.
-    assert.equal(isAirline5GotRegistered, true, "should be registered, but did not");
+    isAirline5GotRegistered = await config.flightSuretyApp.isAirline.call(airline5);
+    assert.equal(isAirline5GotRegistered, true, "10d : should be registered");
+  });
+
+  it("11(Airline Ante) Airline can be registered, but does not participate in contract until it submits funding of 10 ether", async () => {
+    let airline5 = accounts[5]; // this airline just got registered in above test. This airline eligible to register new airline but can not vote untile it has funded contract
+    let airline6 = accounts[6];
+
+    // ACT
+    let sholdBeAbleToIncludeInPendingPool = true;
+    try {
+      await config.flightSuretyApp.registerAirline(airline6, "UK Airways", { from: airline5 });
+    } catch (e) {
+      sholdBeAbleToIncludeInPendingPool = false;
+    }
+
+    //airline5 has successfully put airline6 in pendingPool, but has not got ANY vote so far.
+    //lets try to register again airline from the same airline i.e airline5
+    let canNotCastVote = false;
+    try {
+      //this should fail because airline5 has not funded the contract, should revert with error
+      await config.flightSuretyApp.registerAirline(airline6, "UK Airways", { from: airline5 });
+    } catch (e) {
+      canNotCastVote = true;
+    }
+
+    assert.equal(canNotCastVote, true, "11a:  airline5 can not cast vote until it has funded the contract");
+
+    //confirm that airline6 is not registered
+    let isAirline6GotRegistered = await config.flightSuretyApp.isAirline.call(airline6);
+    assert.equal(isAirline6GotRegistered, false, "11b : should not be registered");
+
+    //let us fund airlin5
+    await config.flightSuretyApp.fund({ from: airline5, value: 10 });
+
+    //confirm is funding successfull
+    let isFunded = await config.flightSuretyApp.isAirlineFunded(airline5);
+    assert.equal(isFunded, true, "11c : Airline5 should have funded");
+
+    //now airline5 is able to vote but airline6 still need 50% consesus to get itself registered
+    let shouldBeAbleToVoteButAirLineShouldNotRegister = false;
+    try {
+      //this should still fail because airline 6 still need 50% consensus
+      await config.flightSuretyApp.registerAirline(airline6, "UK Airways", { from: airline5 });
+    } catch (e) {
+      shouldBeAbleToVoteButAirLineShouldNotRegister = true;
+      //to know how many votes more needed, log the error
+        // console.log(e);
+    }
+    //confirm that airline5 should not be registered because of 50% vote is not gained.
+    assert.equal(shouldBeAbleToVoteButAirLineShouldNotRegister, true, "11d: should not register untill 50% vote");
   });
 });
