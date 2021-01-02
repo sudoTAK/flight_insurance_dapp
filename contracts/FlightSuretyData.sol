@@ -13,8 +13,19 @@ contract FlightSuretyData {
 	bool private operational = true; // Blocks all state changes throughout the contract if false
 	address private authorizeAppContract; // Account allowed to access this contract
 
+	uint256 private airlineInitialFundAmount = 10; // airlines have to pay 10 ether. this can be changed by contract owner. helper function provided.
+
 	mapping(address => Airline) private registeredAirlinesMap;
 	address[] private registeredAirlineArray = new address[](0);
+
+	mapping(address => mapping(address => bool)) private addressToVoteCountMapping;
+
+	//this his helper mapping will be used to delete all entry from addressToVoteCountMapping and
+	//then from iteself after the pending airline is registered with enought votes.
+	//this is done to efficiently save storage and gas because solidity do not provide a way to
+	//delete key from mapping if mapping is typeof like mapping(address => mapping(address=> bool));
+	//see its utilization in deletePendingAirlineFromPool method below
+	mapping(address => address[]) private pendingAirlineMapping;
 
 	struct Airline {
 		string name;
@@ -94,6 +105,21 @@ contract FlightSuretyData {
 	}
 
 	/**
+	 * @dev Sets airlineInitialFundAmount
+	 */
+	function setAirlineInitialFundAmount(uint256 amount) public requireContractOwner {
+		require(amount != airlineInitialFundAmount, "New amount must be different from existing amount");
+		airlineInitialFundAmount = amount;
+	}
+
+	/**
+	 * @dev gets airlineInitialFundAmount
+	 */
+	function getAirlineInitialFundAmount() external requireAuthorizeCaller returns (uint256) {
+		return airlineInitialFundAmount;
+	}
+
+	/**
 	 * @dev Sets registeredAppAddress app contract address
 	 *
 	 * this allow only registeredAppAddress to call data contract
@@ -111,6 +137,10 @@ contract FlightSuretyData {
 	function setTestingMode(bool value) public view requireIsOperational {
 		value = false; //to remove turffle compile warning.
 	}
+
+	/********************************************************************************************/
+	/*                                     APP DATA HELPER FUNCTIONS                             */
+	/********************************************************************************************/
 
 	/**
 	 * @dev method to check if airline already registered or not. called from app contract
@@ -131,6 +161,46 @@ contract FlightSuretyData {
 	 */
 	function getRegisteredAirlineArr() external view requireAuthorizeCaller returns (address[] memory) {
 		return registeredAirlineArray;
+	}
+
+	/**
+	 * @dev adding new airline into the waiting pool of voting approval.
+	 * if newAirlineToBeRegistrered wants to be added, 50% vote must be gained by registered & funded voters
+	 */
+	function addToNewAirlineVotePool(address newAirlineToBeRegistrered, address msgSenderAddress) external requireAuthorizeCaller {
+		addressToVoteCountMapping[newAirlineToBeRegistrered][msgSenderAddress] = true;
+		pendingAirlineMapping[newAirlineToBeRegistrered].push(msgSenderAddress);
+	}
+
+	/**
+	 * this methods return true if msgSenderAddress added newAirlineToBeRegistrered address in pending registration pool and msgSenderAddress has funded too.
+	 *  it can be said that if true, this mean msgSenderAddress has given his vote in newAirlineToBeRegistrered favour
+	 */
+	function addedToPoolAndHasFunded(address pendingRegistration, address msgSenderAddress) external requireAuthorizeCaller returns (bool) {
+		return (registeredAirlinesMap[msgSenderAddress].hasFunded && addressToVoteCountMapping[pendingRegistration][msgSenderAddress]);
+	}
+
+	/**
+	 * @dev get number of votes for the airline which is pending its registration due to not enough voteshare.
+	 * registeredAirline : this is the address of airline which has already been registered
+	 * pendingAirline : this is the address of airline which is pending registration
+	 * Returns :
+	 */
+	function isAirlinInForRegistration(address pendingAirline, address registeredAirline) external view requireAuthorizeCaller returns (bool) {
+		return addressToVoteCountMapping[pendingAirline][registeredAirline];
+	}
+
+	/**
+	 * pendingAirline has got enough vote to be included in registered flight.
+	 * this function removes it from addressToVoteCountMapping pool.
+	 */
+	function deletePendingAirlineFromPool(address pendingAirline) external requireAuthorizeCaller {
+		for (uint256 i = 0; i < pendingAirlineMapping[pendingAirline].length; i++) {
+			//deleting all mapping for pendingAirline, becuase it is now registered.
+			delete addressToVoteCountMapping[pendingAirline][pendingAirlineMapping[pendingAirline][i]];
+		}
+		//now delete the array itself.solidity allow this delete from mapping
+		delete pendingAirlineMapping[pendingAirline];
 	}
 
 	/********************************************************************************************/
@@ -168,9 +238,10 @@ contract FlightSuretyData {
 	/**
 	 * @dev Initial funding for the insurance. Unless there are too many delayed flights
 	 *      resulting in insurance payouts, the contract should be self-sustaining
-	 *
 	 */
-	function fund() public payable {}
+	function fund(address senderAddress) external payable requireAuthorizeCaller {
+		if (msg.value == airlineInitialFundAmount) registeredAirlinesMap[senderAddress].hasFunded = true;
+	}
 
 	function getFlightKey(
 		address airline,
@@ -185,6 +256,6 @@ contract FlightSuretyData {
 	 *
 	 */
 	function() external payable {
-		fund();
+		this.fund(msg.sender);
 	}
 }

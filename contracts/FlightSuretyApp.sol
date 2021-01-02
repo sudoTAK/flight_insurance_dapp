@@ -105,6 +105,13 @@ contract FlightSuretyApp {
 		return flightSuretyData.isAirlineExists(addRess);
 	}
 
+	/**
+	 * @dev method to check if airline already registered or not. called from app contract
+	 */
+	function isAirlineFunded(address airlineAddress) external view requireIsOperational returns (bool) {
+		return flightSuretyData.hasAirlineFunded(airlineAddress);
+	}
+
 	/********************************************************************************************/
 	/*                                     SMART CONTRACT FUNCTIONS                             */
 	/********************************************************************************************/
@@ -123,7 +130,8 @@ contract FlightSuretyApp {
 		require(tempEmptyStringTest.length > 0, "Airline name not provided"); //fail fast if airline name is empty
 		//	address[] registeredAirlineArray;
 		address[] memory getRegisteredAirlineArr = flightSuretyData.getRegisteredAirlineArr();
-		if (getRegisteredAirlineArr.length <= 4) {
+
+		if (getRegisteredAirlineArr.length < 4) {
 			require(
 				flightSuretyData.isAirlineExists(msg.sender),
 				"Only Registered Airline can registered another airline till total registered airlins are upto 4"
@@ -132,10 +140,48 @@ contract FlightSuretyApp {
 			flightSuretyData.registerAirline(airlineAddress, name);
 			return (true, 0);
 		} else {
-			return (false, 0);
-		}
+			uint256 voteRequired = getRegisteredAirlineArr.length.div(2); //fifty percent required
+			uint256 voteGained = 0;
+			bool isDuplicate = false;
 
-		return (false, 0);
+			//check if msg.sender already added provided airline to pool.
+			if (flightSuretyData.isAirlinInForRegistration(airlineAddress, msg.sender)) {
+				//if not, then add this airline to pool and wait for 50% vote.
+				//note : this does not mean one vote is given, it just means pooling. vote count will be calculated later in the method
+				flightSuretyData.addToNewAirlineVotePool(airlineAddress, msg.sender);
+			} else {
+				isDuplicate = true;
+				if (flightSuretyData.addedToPoolAndHasFunded(airlineAddress, msg.sender)) {
+					require(isDuplicate, "You has already voted for this Airline.");
+				} else require(isDuplicate, "You has already added this Airline.");
+			}
+
+			for (uint256 i = 0; i < getRegisteredAirlineArr.length; i++) {
+				//check if the airlin to be registered is already in pool and the msg.sender has funded. if both true, increment one vote.
+				if (flightSuretyData.addedToPoolAndHasFunded(airlineAddress, getRegisteredAirlineArr[i])) {
+					voteGained = voteGained + 1;
+				}
+				if (voteGained == voteRequired) {
+					flightSuretyData.deletePendingAirlineFromPool(airlineAddress);
+					return (true, voteGained);
+				}
+			}
+
+			return (false, voteGained);
+		}
+	}
+
+	/**
+	 * @dev Initial funding for the insurance. Unless there are too many delayed flights
+	 *      resulting in insurance payouts, the contract should be self-sustaining
+	 */
+	function fund() public payable requireIsOperational {
+		//check if amount is ok.
+		require(
+			msg.value == flightSuretyData.getAirlineInitialFundAmount(),
+			string(abi.encodePacked("Invalid amount sent. Check valid amount using getAirlineInitialFundAmount"))
+		);
+		flightSuretyData.fund.value(msg.value)(msg.sender);
 	}
 
 	/**
@@ -313,4 +359,16 @@ contract FlightSuretyData {
 	function getRegisteredAirlineArr() external view returns (address[] memory);
 
 	function registerAirline(address airlineAddress, string name) external;
+
+	function isAirlinInForRegistration(address pendingAirline, address registeredAirline) external view returns (bool);
+
+	function addToNewAirlineVotePool(address newAirlineToBeRegistrered, address msgSenderAddress) external;
+
+	function addedToPoolAndHasFunded(address pendingRegistration, address msgSenderAddress) external returns (bool);
+
+	function deletePendingAirlineFromPool(address pendingAirline) external;
+
+	function getAirlineInitialFundAmount() external returns (uint256);
+
+	function fund(address senderAddress) external payable;
 }
