@@ -243,13 +243,17 @@ contract FlightSuretyApp {
 	/**
 	 * user will call this method from dapp to buy insurance
 	 */
-	function buyInsurance(bytes32 flightKey) external payable requireIsOperational {
+	function buyInsurance(
+		address airline,
+		string flight,
+		uint256 timestamp
+	) external payable requireIsOperational {
 		require(
 			msg.value > 0 && msg.value <= flightSuretyData.getFlightInsuranceCapAmount(),
 			"Invalid insurance buying amount, call getFlightInsuranceCapAmount to know allowed range"
 		);
-		require(flightSuretyData.isFlightExists(flightKey), "Invalid flight, flight does not exists in our system");
-		flightSuretyData.buy(flightKey, msg.sender);
+		require(flightSuretyData.isFlightExists(airline, flight, timestamp), "Invalid flight, flight does not exists in our system");
+		flightSuretyData.buy(airline, flight, timestamp, msg.sender);
 	}
 
 	/**
@@ -454,9 +458,18 @@ contract FlightSuretyData {
 
 	function creditInsurees(bytes32 flightKey) external; //called to credit userbalance for fligh delay
 
-	function buy(bytes32 flightKey, address userAddress) external payable; //called to buy insurance
+	function buy(
+		address airline,
+		string flight,
+		uint256 timestamp,
+		address userAddress
+	) external payable; //called to buy insurance
 
 	function getFlightInsuranceCapAmount() external returns (uint256);
 
-	function isFlightExists(bytes32 flightKey) external returns (bool);
+	function isFlightExists(
+		address airline,
+		string flight,
+		uint256 timestamp
+	) external returns (bool);
 }

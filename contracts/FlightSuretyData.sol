@@ -154,8 +154,12 @@ contract FlightSuretyData {
 	/**
 	 * @dev checks if flightKey exists or not i.e check if flight is registered
 	 */
-	function isFlightExists(bytes32 flightKey) external view requireAuthorizeCaller returns (bool) {
-		return flights[flightKey].isRegistered;
+	function isFlightExists(
+		address airline,
+		string flight,
+		uint256 timestamp
+	) external view requireAuthorizeCaller returns (bool) {
+		return flights[getFlightKey(airline, flight, timestamp)].isRegistered;
 	}
 
 	// /**
@@ -276,8 +280,14 @@ contract FlightSuretyData {
 	 * @dev Buy insurance for a flight
 	 *  no validation needed, validation done by app contract
 	 */
-	function buy(bytes32 flightKey, address userAddress) external payable requireAuthorizeCaller {
+	function buy(
+		address airline,
+		string flight,
+		uint256 timestamp,
+		address userAddress
+	) external payable requireAuthorizeCaller {
 		require(msg.value > 0 && msg.value <= flightInsuranceCapAmount, "invalid amount given for insurance buying");
+		bytes32 flightKey = getFlightKey(airline, flight, timestamp);
 		boughtInsurance[flightKey].insuredPassengers.push(userAddress);
 		boughtInsurance[flightKey].insuredAmountMapping[userAddress] = msg.value;
 	}

@@ -246,4 +246,28 @@ contract("Flight Surety Tests", async (accounts) => {
     }
     assert.equal(fligtRegistrationShoulPass, true, "rigistered and funded airline should be able to register flights");
   });
+
+  it("13(flights) buy insurance", async () => {
+    // ARRANGE
+    let notRegisteredAirline = accounts[7];
+    let timestamp = Math.floor(Date.now() / 1000) + 24 * 60 * 60; //next day flight time
+
+    let fligtRegistrationShoulFail = true;
+    // ACT
+    try {
+      await config.flightSuretyApp.registerFlight("JP101", timestamp, { from: notRegisteredAirline });
+    } catch (e) {
+      fligtRegistrationShoulFail = false;
+    }
+    assert.equal(fligtRegistrationShoulFail, false, "notRegisteredAirline is not registered airline, flight registration should fail");
+
+    //registering flights from registered airline should pass
+    let fligtRegistrationShoulPass = true;
+    try {
+      await config.flightSuretyApp.registerFlight("JP101", timestamp, { from: config.firstAirline });
+    } catch (e) {
+      fligtRegistrationShoulPass = false;
+    }
+    assert.equal(fligtRegistrationShoulPass, true, "rigistered and funded airline should be able to register flights");
+  });
 });
