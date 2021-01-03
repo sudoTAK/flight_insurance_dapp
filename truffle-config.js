@@ -48,9 +48,11 @@ module.exports = {
 
     develop: {
       provider: function () {
-        return new HDWallet(mnemonic, "http://127.0.0.1:8545/", 0, 50);
+        return new HDWallet(mnemonic, "http://127.0.0.1:8545/", 0, 100);
       },
       port: 8545,
+      accounts: 100,
+      defaultEtherBalance: 100,
     },
 
     // Another network with more advanced options...

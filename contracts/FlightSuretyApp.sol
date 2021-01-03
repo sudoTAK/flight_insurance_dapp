@@ -244,7 +244,9 @@ contract FlightSuretyApp {
 		string memory flight,
 		uint256 timestamp,
 		uint8 statusCode
-	) internal pure {}
+	) internal pure {
+		//return money if filght delayed
+	}
 
 	// Generate a request for oracles to fetch flight information
 	function fetchFlightStatus(
