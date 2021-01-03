@@ -15,6 +15,7 @@ contract FlightSuretyData {
 	address private authorizeAppContract; // Account allowed to access this contract
 
 	uint256 private airlineInitialFundAmount = 10 ether; // airlines have to pay 10 ether. this can be changed by contract owner. helper function provided.
+	uint256 private flightInsuranceCapAmount = 1 ether; // auser can buy insurance by paying upto 1 ether.
 
 	mapping(address => Airline) private registeredAirlinesMap;
 	address[] private registeredAirlineArray = new address[](0);
@@ -43,9 +44,23 @@ contract FlightSuretyData {
 	}
 	mapping(bytes32 => Flight) private flights;
 
+	bytes32[] flightsKeyArr; //will be used to iterate flights mapping and will send the result to user's frontend
+
+	struct Insured {
+		bool isInsured;
+		address[] insuredPassengers;
+		mapping(address => uint256) insuredAmountMapping;
+	}
+
+	mapping(bytes32 => Insured) boughtInsurance;
+
+	mapping(address => uint256) userWallet;
+
 	/********************************************************************************************/
 	/*                                       EVENT DEFINITIONS                                  */
 	/********************************************************************************************/
+	event WalletCredited(address userWalletAddress, uint256 amount, string creditReason);
+	event AmountTransferedToUser(address userWalletAddress, uint256 amount);
 
 	/**
 	 * @dev Constructor
@@ -125,9 +140,31 @@ contract FlightSuretyData {
 	/**
 	 * @dev gets airlineInitialFundAmount
 	 */
-	function getAirlineInitialFundAmount() external requireAuthorizeCaller returns (uint256) {
+	function getAirlineInitialFundAmount() external view requireAuthorizeCaller returns (uint256) {
 		return airlineInitialFundAmount;
 	}
+
+	/**
+	 * @dev gets flightInsuranceCapAmount
+	 */
+	function getFlightInsuranceCapAmount() external view requireAuthorizeCaller returns (uint256) {
+		return flightInsuranceCapAmount;
+	}
+
+	/**
+	 * @dev checks if flightKey exists or not i.e check if flight is registered
+	 */
+	function isFlightExists(bytes32 flightKey) external view requireAuthorizeCaller returns (bool) {
+		return flights[flightKey].isRegistered;
+	}
+
+	// /**
+	//  * @dev get registered flights. will be used to show on dapp
+	//  */
+	// function getRegisteredFlights() external view requireAuthorizeCaller returns (bool) {
+	// 	//	return flights[flightKey].isRegistered;
+	// 	return true;
+	// }
 
 	/**
 	 * @dev Sets registeredAppAddress app contract address
@@ -186,7 +223,7 @@ contract FlightSuretyData {
 	 * this methods return true if msgSenderAddress added newAirlineToBeRegistrered address in pending registration pool and msgSenderAddress has funded too.
 	 *  it can be said that if true, this mean msgSenderAddress has given his vote in newAirlineToBeRegistrered favour
 	 */
-	function addedToPoolAndHasFunded(address pendingRegistration, address msgSenderAddress) external requireAuthorizeCaller returns (bool) {
+	function addedToPoolAndHasFunded(address pendingRegistration, address msgSenderAddress) external view requireAuthorizeCaller returns (bool) {
 		return (registeredAirlinesMap[msgSenderAddress].hasFunded && addressToVoteCountMapping[pendingRegistration][msgSenderAddress]);
 	}
 
@@ -213,6 +250,13 @@ contract FlightSuretyData {
 		delete pendingAirlineMapping[pendingAirline];
 	}
 
+	/**
+	 * get user balance
+	 */
+	function getUserBalance(address userAddress) external view requireAuthorizeCaller returns (uint256) {
+		return userWallet[userAddress];
+	}
+
 	/********************************************************************************************/
 	/*                                     SMART CONTRACT FUNCTIONS                             */
 	/********************************************************************************************/
@@ -230,20 +274,59 @@ contract FlightSuretyData {
 
 	/**
 	 * @dev Buy insurance for a flight
-	 *
+	 *  no validation needed, validation done by app contract
 	 */
-	function buy() external payable {}
+	function buy(bytes32 flightKey, address userAddress) external payable requireAuthorizeCaller {
+		require(msg.value > 0 && msg.value <= flightInsuranceCapAmount, "invalid amount given for insurance buying");
+		boughtInsurance[flightKey].insuredPassengers.push(userAddress);
+		boughtInsurance[flightKey].insuredAmountMapping[userAddress] = msg.value;
+	}
 
 	/**
 	 *  @dev Credits payouts to insurees
+	 * do not pay directly, just credit users wallet
 	 */
-	function creditInsurees() external pure {}
+	function creditInsurees(bytes32 flightKey) external requireAuthorizeCaller {
+		require(boughtInsurance[flightKey].isInsured, "You have not insured yourself");
+		address[] memory insuredPeopleArr = boughtInsurance[flightKey].insuredPassengers;
+		for (uint256 i = 0; i < insuredPeopleArr.length; i++) {
+			uint256 amountToCredit = boughtInsurance[flightKey].insuredAmountMapping[insuredPeopleArr[i]].mul(3).div(2); //credit 1.5 times, can be made configurable
+			// debit before credit
+			boughtInsurance[flightKey].insuredAmountMapping[insuredPeopleArr[i]] = 0;
+			//now credit user wallet.
+			userWallet[insuredPeopleArr[i]] = userWallet[insuredPeopleArr[i]] + amountToCredit;
+			emit WalletCredited(
+				insuredPeopleArr[i],
+				amountToCredit,
+				string(abi.encodePacked("Insuracne amount credited to your wallet for flight no. ", flights[flightKey].name))
+			);
+		}
+
+		//delete references
+		if (insuredPeopleArr.length > 0) {
+			//dIs
+			for (uint256 k = 0; k < insuredPeopleArr.length; k++) {
+				delete boughtInsurance[flightKey].insuredAmountMapping[insuredPeopleArr[k]];
+			}
+			//delete array now
+			delete boughtInsurance[flightKey].insuredPassengers;
+		}
+		//delete paidPlayers;
+	}
 
 	/**
 	 *  @dev Transfers eligible payout funds to insuree
 	 *
 	 */
-	function pay() external pure {}
+	function pay(address userAddress) external requireAuthorizeCaller {
+		uint256 userBalance = userWallet[userAddress];
+		require(userBalance > 0, "User balance is nil");
+		// debit before credit
+		delete userWallet[userAddress];
+		//now credit user wallet.
+		userAddress.transfer(userBalance);
+		emit AmountTransferedToUser(userAddress, userBalance);
+	}
 
 	/**
 	 * @dev Initial funding for the insurance. Unless there are too many delayed flights
@@ -267,9 +350,11 @@ contract FlightSuretyData {
 	function registerFlight(
 		address airline,
 		string flight,
-		uint timestamp
+		uint256 timestamp
 	) external requireAuthorizeCaller {
-		flights[getFlightKey(airline, flight, timestamp)] = Flight(true, STATUS_CODE_ON_TIME, timestamp, airline, flight);
+		bytes32 flightKey = getFlightKey(airline, flight, timestamp);
+		flights[flightKey] = Flight(true, STATUS_CODE_ON_TIME, timestamp, airline, flight);
+		flightsKeyArr.push(flightKey);
 	}
 
 	/**

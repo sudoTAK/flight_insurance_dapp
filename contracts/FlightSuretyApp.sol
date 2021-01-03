@@ -225,10 +225,31 @@ contract FlightSuretyApp {
 	 * @dev Register a future flight for insuring.
 	 *
 	 */
-	function registerFlight(string flight, uint256 timestamp) external requireIsOperational {
+	function registerFlight(string flight, uint256 timestamp) public requireIsOperational {
 		require(flightSuretyData.isAirlineExists(msg.sender), "Only Registered Airline can register flights");
 		require(flightSuretyData.hasAirlineFunded(msg.sender), "Only Airlines who have funded the contract can register its flights");
 		flightSuretyData.registerFlight(msg.sender, flight, timestamp);
+	}
+
+	/**
+	 * @dev send back insuance amount to user account from userwallet balance
+	 *
+	 */
+	function withdraw() public payable requireIsOperational {
+		require(flightSuretyData.getUserBalance(msg.sender) > 0, "User balance is nil");
+		flightSuretyData.pay(msg.sender);
+	}
+
+	/**
+	 * user will call this method from dapp to buy insurance
+	 */
+	function buyInsurance(bytes32 flightKey) external payable requireIsOperational {
+		require(
+			msg.value > 0 && msg.value <= flightSuretyData.getFlightInsuranceCapAmount(),
+			"Invalid insurance buying amount, call getFlightInsuranceCapAmount to know allowed range"
+		);
+		require(flightSuretyData.isFlightExists(flightKey), "Invalid flight, flight does not exists in our system");
+		flightSuretyData.buy(flightKey, msg.sender);
 	}
 
 	/**
@@ -240,8 +261,14 @@ contract FlightSuretyApp {
 		string memory flight,
 		uint256 timestamp,
 		uint8 statusCode
-	) internal pure {
+	) internal requireIsOperational {
 		//return money if filght delayed
+		if (statusCode == STATUS_CODE_LATE_AIRLINE) {
+			//initiat credit to user wallet, transfer only when user call withdraw method
+			flightSuretyData.creditInsurees(keccak256(abi.encodePacked(airline, flight, timestamp)));
+		} else {
+			//noting to do for know, FlightStatusInfo event already called
+		}
 	}
 
 	// Generate a request for oracles to fetch flight information
@@ -413,11 +440,23 @@ contract FlightSuretyData {
 
 	function getAirlineInitialFundAmount() external returns (uint256);
 
-	function fund(address senderAddress) external payable;
+	function fund(address senderAddress) external payable; //airline need to fund before talkin part in contract
 
 	function registerFlight(
 		address airline,
 		string flight,
 		uint256 timestamp
 	) external;
+
+	function pay(address userAddress) external; // called to transfer money to user account 1.5 times of insurance amount
+
+	function getUserBalance(address userAddress) external returns (uint256);
+
+	function creditInsurees(bytes32 flightKey) external; //called to credit userbalance for fligh delay
+
+	function buy(bytes32 flightKey, address userAddress) external payable; //called to buy insurance
+
+	function getFlightInsuranceCapAmount() external returns (uint256);
+
+	function isFlightExists(bytes32 flightKey) external returns (bool);
 }
