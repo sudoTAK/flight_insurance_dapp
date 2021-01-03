@@ -8,6 +8,7 @@ contract FlightSuretyData {
 	/********************************************************************************************/
 	/*                                       DATA VARIABLES                                     */
 	/********************************************************************************************/
+	uint8 private constant STATUS_CODE_ON_TIME = 10;
 
 	address private contractOwner; // Account used to deploy contract
 	bool private operational = true; // Blocks all state changes throughout the contract if false
@@ -32,6 +33,15 @@ contract FlightSuretyData {
 		bool isRegistered;
 		bool hasFunded;
 	}
+
+	struct Flight {
+		bool isRegistered;
+		uint8 statusCode;
+		uint256 updatedTimestamp;
+		address airline;
+		string name;
+	}
+	mapping(bytes32 => Flight) private flights;
 
 	/********************************************************************************************/
 	/*                                       EVENT DEFINITIONS                                  */
@@ -249,6 +259,17 @@ contract FlightSuretyData {
 		uint256 timestamp
 	) internal pure returns (bytes32) {
 		return keccak256(abi.encodePacked(airline, flight, timestamp));
+	}
+
+	/**
+	 * register flight, this data will be used to show in client app
+	 */
+	function registerFlight(
+		address airline,
+		string flight,
+		uint timestamp
+	) external requireAuthorizeCaller {
+		flights[getFlightKey(airline, flight, timestamp)] = Flight(true, STATUS_CODE_ON_TIME, timestamp, airline, flight);
 	}
 
 	/**

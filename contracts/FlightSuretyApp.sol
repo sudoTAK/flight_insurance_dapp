@@ -28,14 +28,6 @@ contract FlightSuretyApp {
 
 	FlightSuretyData flightSuretyData; //data contract instance
 
-	struct Flight {
-		bool isRegistered;
-		uint8 statusCode;
-		uint256 updatedTimestamp;
-		address airline;
-	}
-	mapping(bytes32 => Flight) private flights;
-
 	/********************************************************************************************/
 	/*                                       FUNCTION MODIFIERS                                 */
 	/********************************************************************************************/
@@ -233,7 +225,11 @@ contract FlightSuretyApp {
 	 * @dev Register a future flight for insuring.
 	 *
 	 */
-	function registerFlight() external pure {}
+	function registerFlight(string flight, uint256 timestamp) external requireIsOperational {
+		require(flightSuretyData.isAirlineExists(msg.sender), "Only Registered Airline can register flights");
+		require(flightSuretyData.hasAirlineFunded(msg.sender), "Only Airlines who have funded the contract can register its flights");
+		flightSuretyData.registerFlight(msg.sender, flight, timestamp);
+	}
 
 	/**
 	 * @dev Called after oracle has updated flight status
@@ -418,4 +414,10 @@ contract FlightSuretyData {
 	function getAirlineInitialFundAmount() external returns (uint256);
 
 	function fund(address senderAddress) external payable;
+
+	function registerFlight(
+		address airline,
+		string flight,
+		uint256 timestamp
+	) external;
 }
