@@ -52,7 +52,7 @@ module.exports = {
       },
       port: 8545,
       accounts: 100,
-      defaultEtherBalance: 100,
+      defaultEtherBalance: 1000,
     },
 
     // Another network with more advanced options...

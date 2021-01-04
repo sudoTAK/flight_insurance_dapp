@@ -253,7 +253,7 @@ contract FlightSuretyApp {
 			"Invalid insurance buying amount, call getFlightInsuranceCapAmount to know allowed range"
 		);
 		require(flightSuretyData.isFlightExists(airline, flight, timestamp), "Invalid flight, flight does not exists in our system");
-		flightSuretyData.buy(airline, flight, timestamp, msg.sender);
+		flightSuretyData.buy.value(msg.value)(airline, flight, timestamp, msg.sender);
 	}
 
 	/**

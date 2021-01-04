@@ -249,25 +249,37 @@ contract("Flight Surety Tests", async (accounts) => {
 
   it("13(flights) buy insurance", async () => {
     // ARRANGE
-    let notRegisteredAirline = accounts[7];
+    const insuranceBuyerAccount = accounts[3];
     let timestamp = Math.floor(Date.now() / 1000) + 24 * 60 * 60; //next day flight time
+    await config.flightSuretyApp.registerFlight("JP101", timestamp, { from: config.firstAirline }); //register flight
 
-    let fligtRegistrationShoulFail = true;
+    let insuranceBuyingShouldFailBecauseNoSuchFlightExists = false;
     // ACT
     try {
-      await config.flightSuretyApp.registerFlight("JP101", timestamp, { from: notRegisteredAirline });
+      await config.flightSuretyApp.buyInsurance(config.firstAirline, "JP101" + "random", timestamp, {
+        from: insuranceBuyerAccount,
+        value: web3.utils.toWei("1", "ether"),
+      }); //buy insurance for flight which does not exists in system.should fail
     } catch (e) {
-      fligtRegistrationShoulFail = false;
+      insuranceBuyingShouldFailBecauseNoSuchFlightExists = true;
     }
-    assert.equal(fligtRegistrationShoulFail, false, "notRegisteredAirline is not registered airline, flight registration should fail");
+    assert.equal(insuranceBuyingShouldFailBecauseNoSuchFlightExists, true, "flight insurance buying should fail");
 
-    //registering flights from registered airline should pass
-    let fligtRegistrationShoulPass = true;
+    let beforeBalance = web3.utils.fromWei(await web3.eth.getBalance(insuranceBuyerAccount), "ether");
+    console.log("beforeBalance", beforeBalance);
+    //now buy insurance with genuine flight
+    let insuraneBuySholdPassIfFlightIsGenuine = true;
     try {
-      await config.flightSuretyApp.registerFlight("JP101", timestamp, { from: config.firstAirline });
+      await config.flightSuretyApp.buyInsurance(config.firstAirline, "JP101", timestamp, {
+        from: insuranceBuyerAccount,
+        value: web3.utils.toWei("1", "ether"),
+      });
     } catch (e) {
-      fligtRegistrationShoulPass = false;
+      console.log(e);
+      insuraneBuySholdPassIfFlightIsGenuine = false;
     }
-    assert.equal(fligtRegistrationShoulPass, true, "rigistered and funded airline should be able to register flights");
+    assert.equal(insuraneBuySholdPassIfFlightIsGenuine, true, "flight insurance buying should pass");
+    let afterBalance = web3.utils.fromWei(await web3.eth.getBalance(insuranceBuyerAccount), "ether");
+    console.log("afterBalance", afterBalance);
   });
 });
