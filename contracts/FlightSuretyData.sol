@@ -286,7 +286,7 @@ contract FlightSuretyData {
 		uint256 timestamp,
 		address userAddress
 	) external payable requireAuthorizeCaller {
-		require(now > timestamp, "Insurance for flight which have alredy flew not allowed.");
+		require(now < timestamp, "Insurance for flight which have alredy flew not allowed.");
 		require(msg.value > 0 && msg.value <= flightInsuranceCapAmount, "invalid amount given for insurance buying");
 		bytes32 flightKey = getFlightKey(airline, flight, timestamp);
 		boughtInsurance[flightKey].insuredPassengers.push(userAddress);
