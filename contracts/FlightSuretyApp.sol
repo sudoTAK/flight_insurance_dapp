@@ -104,6 +104,21 @@ contract FlightSuretyApp {
 		return flightSuretyData.hasAirlineFunded(airlineAddress);
 	}
 
+	/**
+	 * @dev gets airlineInitialFundAmount
+	 */
+	function airlineFundFee() public view returns (uint256) {
+		return flightSuretyData.getAirlineInitialFundAmount();
+	}
+
+	/**
+	 * @dev return users wallet balance
+	 *
+	 */
+	function getMyWalletBalance() public view requireIsOperational returns (uint256) {
+		return flightSuretyData.getUserBalance(msg.sender);
+	}
+
 	/// @notice converts number to string
 	/// @dev source: https://github.com/provable-things/ethereum-api/blob/master/oraclizeAPI_0.5.sol#L1045
 	/// @param _i integer to convert
@@ -231,13 +246,17 @@ contract FlightSuretyApp {
 		flightSuretyData.registerFlight(msg.sender, flight, timestamp);
 	}
 
+	event AmountTransferedToUser(address indexed userWalletAddress, uint256 amount);
+
 	/**
 	 * @dev send back insuance amount to user account from userwallet balance
 	 *
 	 */
-	function withdraw() public payable requireIsOperational {
-		require(flightSuretyData.getUserBalance(msg.sender) > 0, "User balance is nil");
+	function withdraw() public requireIsOperational {
+		uint256 userBalance = flightSuretyData.getUserBalance(msg.sender);
+		require(userBalance > 0, "User balance is nil");
 		flightSuretyData.pay(msg.sender);
+		emit AmountTransferedToUser(msg.sender, userBalance);
 	}
 
 	/**
@@ -247,12 +266,15 @@ contract FlightSuretyApp {
 		address airline,
 		string flight,
 		uint256 timestamp
-	) external payable requireIsOperational {
+	) public payable requireIsOperational {
+		require(flightSuretyData.isAirlineExists(airline), "Airline not registered with us");
+		require(flightSuretyData.hasAirlineFunded(airline), "Airline has not funded contract");
+		require(now < timestamp, "Insurance for flight which have alredy flew not allowed.");
 		require(
 			msg.value > 0 && msg.value <= flightSuretyData.getFlightInsuranceCapAmount(),
 			"Invalid insurance buying amount, call getFlightInsuranceCapAmount to know allowed range"
 		);
-		require(flightSuretyData.isFlightExists(airline, flight, timestamp), "Invalid flight, flight does not exists in our system");
+		require(!flightSuretyData.isInsuranceAlreadyBought(airline, flight, timestamp), "You have already bought insurance for this flight");
 		flightSuretyData.buy.value(msg.value)(airline, flight, timestamp, msg.sender);
 	}
 
@@ -266,6 +288,9 @@ contract FlightSuretyApp {
 		uint256 timestamp,
 		uint8 statusCode
 	) internal requireIsOperational {
+		require(flightSuretyData.isAirlineExists(airline), "Airline not registered with us");
+		require(flightSuretyData.hasAirlineFunded(airline), "Airline has not funded contract");
+
 		//return money if filght delayed
 		if (statusCode == STATUS_CODE_LATE_AIRLINE) {
 			//initiat credit to user wallet, transfer only when user call withdraw method
@@ -280,7 +305,7 @@ contract FlightSuretyApp {
 		address airline,
 		string flight,
 		uint256 timestamp
-	) external {
+	) public {
 		uint8 index = getRandomIndex(msg.sender);
 
 		// Generate a unique key for storing the request
@@ -299,7 +324,7 @@ contract FlightSuretyApp {
 	uint256 public constant REGISTRATION_FEE = 1 ether;
 
 	// Number of oracles that must respond for valid status
-	uint256 private constant MIN_RESPONSES = 3;
+	uint256 private constant MIN_RESPONSES = 1;
 
 	struct Oracle {
 		bool isRegistered;
@@ -358,7 +383,7 @@ contract FlightSuretyApp {
 		string flight,
 		uint256 timestamp,
 		uint8 statusCode
-	) external {
+	) public {
 		require(
 			(oracles[msg.sender].indexes[0] == index) || (oracles[msg.sender].indexes[1] == index) || (oracles[msg.sender].indexes[2] == index),
 			"Index does not match oracle request"
@@ -373,8 +398,8 @@ contract FlightSuretyApp {
 		// oracles respond with the *** same *** information
 		emit OracleReport(airline, flight, timestamp, statusCode);
 		if (oracleResponses[key].responses[statusCode].length >= MIN_RESPONSES) {
+			delete oracleResponses[key];
 			emit FlightStatusInfo(airline, flight, timestamp, statusCode);
-
 			// Handle flight status as appropriate
 			processFlightStatus(airline, flight, timestamp, statusCode);
 		}
@@ -438,11 +463,11 @@ contract FlightSuretyData {
 
 	function addToNewAirlineVotePool(address newAirlineToBeRegistrered, address msgSenderAddress) external;
 
-	function addedToPoolAndHasFunded(address pendingRegistration, address msgSenderAddress) external returns (bool);
+	function addedToPoolAndHasFunded(address pendingRegistration, address msgSenderAddress) external view returns (bool);
 
 	function deletePendingAirlineFromPool(address pendingAirline) external;
 
-	function getAirlineInitialFundAmount() external returns (uint256);
+	function getAirlineInitialFundAmount() external view returns (uint256);
 
 	function fund(address senderAddress) external payable; //airline need to fund before talkin part in contract
 
@@ -454,7 +479,7 @@ contract FlightSuretyData {
 
 	function pay(address userAddress) external; // called to transfer money to user account 1.5 times of insurance amount
 
-	function getUserBalance(address userAddress) external returns (uint256);
+	function getUserBalance(address userAddress) external view returns (uint256);
 
 	function creditInsurees(bytes32 flightKey) external; //called to credit userbalance for fligh delay
 
@@ -465,11 +490,17 @@ contract FlightSuretyData {
 		address userAddress
 	) external payable; //called to buy insurance
 
-	function getFlightInsuranceCapAmount() external returns (uint256);
+	function getFlightInsuranceCapAmount() external view returns (uint256);
 
 	function isFlightExists(
 		address airline,
 		string flight,
 		uint256 timestamp
-	) external returns (bool);
+	) external view returns (bool);
+
+	function isInsuranceAlreadyBought(
+		address airline,
+		string flight,
+		uint256 timestamp
+	) external view returns (bool);
 }

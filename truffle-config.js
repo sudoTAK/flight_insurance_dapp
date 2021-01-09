@@ -51,8 +51,8 @@ module.exports = {
         return new HDWallet(mnemonic, "http://127.0.0.1:8545/", 0, 100);
       },
       port: 8545,
-      accounts: 100,
-      defaultEtherBalance: 1000,
+      accounts: 501,
+      defaultEtherBalance: 100000,
     },
 
     // Another network with more advanced options...

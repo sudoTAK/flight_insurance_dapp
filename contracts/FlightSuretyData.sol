@@ -44,10 +44,9 @@ contract FlightSuretyData {
 	}
 	mapping(bytes32 => Flight) private flights;
 
-	bytes32[] flightsKeyArr; //will be used to iterate flights mapping and will send the result to user's frontend
-
 	struct Insured {
 		bool isInsured;
+		string flightName;
 		address[] insuredPassengers;
 		mapping(address => uint256) insuredAmountMapping;
 	}
@@ -59,8 +58,7 @@ contract FlightSuretyData {
 	/********************************************************************************************/
 	/*                                       EVENT DEFINITIONS                                  */
 	/********************************************************************************************/
-	event WalletCredited(address userWalletAddress, uint256 amount, string creditReason);
-	event AmountTransferedToUser(address userWalletAddress, uint256 amount);
+	event WalletCredited(address indexed userWalletAddress, uint256 amount, string creditReason);
 
 	/**
 	 * @dev Constructor
@@ -162,14 +160,6 @@ contract FlightSuretyData {
 		return flights[getFlightKey(airline, flight, timestamp)].isRegistered;
 	}
 
-	// /**
-	//  * @dev get registered flights. will be used to show on dapp
-	//  */
-	// function getRegisteredFlights() external view requireAuthorizeCaller returns (bool) {
-	// 	//	return flights[flightKey].isRegistered;
-	// 	return true;
-	// }
-
 	/**
 	 * @dev Sets registeredAppAddress app contract address
 	 *
@@ -194,7 +184,7 @@ contract FlightSuretyData {
 	/********************************************************************************************/
 
 	/**
-	 * @dev method to check if airline already registered or not. called from app contract
+	 * @dev method to check if airline already registered or not.
 	 */
 	function isAirlineExists(address airlineAddress) external view requireAuthorizeCaller returns (bool) {
 		return registeredAirlinesMap[airlineAddress].isRegistered;
@@ -261,6 +251,18 @@ contract FlightSuretyData {
 		return userWallet[userAddress];
 	}
 
+	/**
+	 * @dev method to check if insurance already bought for a flight.
+	 */
+	function isInsuranceAlreadyBought(
+		address airline,
+		string flight,
+		uint256 timestamp
+	) external view requireAuthorizeCaller returns (bool) {
+		bytes32 flightKey = getFlightKey(airline, flight, timestamp);
+		return boughtInsurance[flightKey].isInsured;
+	}
+
 	/********************************************************************************************/
 	/*                                     SMART CONTRACT FUNCTIONS                             */
 	/********************************************************************************************/
@@ -289,6 +291,8 @@ contract FlightSuretyData {
 		require(now < timestamp, "Insurance for flight which have alredy flew not allowed.");
 		require(msg.value > 0 && msg.value <= flightInsuranceCapAmount, "invalid amount given for insurance buying");
 		bytes32 flightKey = getFlightKey(airline, flight, timestamp);
+		boughtInsurance[flightKey].isInsured = true;
+		boughtInsurance[flightKey].flightName = flight;
 		boughtInsurance[flightKey].insuredPassengers.push(userAddress);
 		boughtInsurance[flightKey].insuredAmountMapping[userAddress] = msg.value;
 	}
@@ -309,10 +313,9 @@ contract FlightSuretyData {
 			emit WalletCredited(
 				insuredPeopleArr[i],
 				amountToCredit,
-				string(abi.encodePacked("Insuracne amount credited to your wallet for flight no. ", flights[flightKey].name))
+				string(abi.encodePacked("Insuracne amount credited to your wallet for flight no. ", boughtInsurance[flightKey].flightName))
 			);
 		}
-
 		//delete references
 		if (insuredPeopleArr.length > 0) {
 			//dIs
@@ -336,7 +339,6 @@ contract FlightSuretyData {
 		delete userWallet[userAddress];
 		//now credit user wallet.
 		userAddress.transfer(userBalance);
-		emit AmountTransferedToUser(userAddress, userBalance);
 	}
 
 	/**
@@ -365,7 +367,6 @@ contract FlightSuretyData {
 	) external requireAuthorizeCaller {
 		bytes32 flightKey = getFlightKey(airline, flight, timestamp);
 		flights[flightKey] = Flight(true, STATUS_CODE_ON_TIME, timestamp, airline, flight);
-		flightsKeyArr.push(flightKey);
 	}
 
 	/**
