@@ -1,6 +1,7 @@
 # FlightSurety
 
-FlightSurety is a sample application project for Udacity's Blockchain Nanodegree program.
+FlightSurety is a sample application project. The project purpose is to show demonstrate how Blockchian can be
+used as one of the use case for Flight insurrance as opposed to traditional centralised insurance for flights.
 
 ## Install
 
